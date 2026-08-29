@@ -458,9 +458,22 @@ export default function App() {
   };
 
   const handleUpdateTestDriveStatus = (id: string, newStatus: TestDrive['status']) => {
+    // Optimistic update so the UI feels instant...
     setTestDrives((prev) =>
       prev.map((t) => (t.id === id ? { ...t, status: newStatus } : t))
     );
+
+    // ...then persist it to the server so it survives a refresh/poll cycle.
+    // Without this, the change only ever lived in this tab's React state —
+    // the next poll (or a page reload) would overwrite it with whatever
+    // status is still stored on the backend.
+    fetch(apiUrl(`/api/testdrives/${id}`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    }).catch((err) => {
+      console.warn('Failed to persist test drive status update:', err);
+    });
   };
 
   const handleUpdateStock = (itemId: string, newStock: number) => {
