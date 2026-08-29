@@ -8,6 +8,7 @@ const memory = {
   redemptions: [],
   orders: new Map(), // id -> row
   feedback: [],
+  testdrives: new Map(), // id -> row
 };
 
 async function safeSupabase(fn, fallback) {
@@ -181,5 +182,35 @@ export async function listFeedback() {
   for (const row of supaRows) {
     if (!merged.some((f) => f.id === row.id)) merged.push(row);
   }
+  return merged;
+}
+
+// ---------------------------------------------------------------------------
+// Test Drives
+// ---------------------------------------------------------------------------
+
+export async function saveTestDrive(testDrive) {
+  memory.testdrives.set(testDrive.id, testDrive);
+  await safeSupabase(
+    () => supabase.from("testdrives").upsert({ id: testDrive.id, ...testDrive }),
+    null
+  );
+  return testDrive;
+}
+
+export async function listTestDrives() {
+  const supaRows = await safeSupabase(async () => {
+    const { data } = await supabase
+      .from("testdrives")
+      .select("*")
+      .order("booked_at", { ascending: false })
+      .limit(100);
+    return data || [];
+  }, []);
+  const merged = [...memory.testdrives.values()];
+  for (const row of supaRows) {
+    if (!merged.some((t) => t.id === row.id)) merged.push(row);
+  }
+  merged.sort((a, b) => new Date(b.booked_at || 0).getTime() - new Date(a.booked_at || 0).getTime());
   return merged;
 }

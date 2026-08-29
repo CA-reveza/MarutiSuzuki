@@ -10,10 +10,10 @@ export const STORE = {
 };
 
 const ACTIVE_COUPON_CODES = [
-  "FESTIVE20",
+  "ACCESSORIES20",
   "FIRSTCITIZEN15",
-  "BEAUTYBUY2",
-  "ENDOFSEASON50",
+  "SERVICEBUY2",
+  "TESTDRIVE50",
 ];
 
 export function randomCouponCode() {
