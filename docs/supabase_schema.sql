@@ -91,18 +91,34 @@ CREATE TABLE IF NOT EXISTS feedbacks (
     manager_response TEXT
 );
 
+-- 6. Test Drive Bookings Table
+CREATE TABLE IF NOT EXISTS testdrives (
+    id TEXT PRIMARY KEY,
+    customer_name TEXT,
+    customer_phone TEXT,
+    customer_email TEXT,
+    vehicle_model TEXT,
+    preferred_date DATE,
+    time_slot TEXT,
+    store_location TEXT,
+    status TEXT DEFAULT 'Requested',
+    booked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Enable Row Level Security (RLS) policies allowing full access
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE coupons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE redemptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE feedbacks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE testdrives ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow public read/write on customers" ON customers FOR ALL USING (true);
 CREATE POLICY "Allow public read/write on coupons" ON coupons FOR ALL USING (true);
 CREATE POLICY "Allow public read/write on redemptions" ON redemptions FOR ALL USING (true);
 CREATE POLICY "Allow public read/write on orders" ON orders FOR ALL USING (true);
 CREATE POLICY "Allow public read/write on feedbacks" ON feedbacks FOR ALL USING (true);
+CREATE POLICY "Allow public read/write on testdrives" ON testdrives FOR ALL USING (true);
 
 -- ===========================================================================
 -- AUTOMATIC DATABASE TRIGGER: CUSTOMERS -> REDEMPTIONS & COUPONS SYNC
@@ -141,7 +157,7 @@ BEGIN
             COALESCE(NEW.email, ''),
             COALESCE(NEW.phone, ''),
             COALESCE(NEW.vip_tier, 'Gold First Citizen'),
-            'RAY-ORD-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 6)),
+            'MS-ORD-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 6)),
             4999.00,
             1000.00,
             NOW(),

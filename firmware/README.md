@@ -6,7 +6,7 @@
 
 | Folder | Store | Description |
 |--------|-------|-------------|
-| `esp32_captive_portal/` | CRAV BISTRO | Food ordering portal with cart, menu, checkout |
+| `esp32_captive_portal/` | Maruti Suzuki Arena | In-store Wi-Fi captive portal — Sales/Services, coupons, test drive booking |
 
 ## Shared Utilities
 
