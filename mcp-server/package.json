@@ -1,0 +1,16 @@
+{
+  "name": "maruti-suzuki-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server exposing the Maruti Suzuki showroom API (test drives, customers, orders, coupons, feedback) as tools for Claude and other MCP clients.",
+  "type": "module",
+  "bin": {
+    "maruti-suzuki-mcp": "./index.js"
+  },
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  }
+}

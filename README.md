@@ -14,14 +14,16 @@ maruti-suzuki-portal/
 ├── dashboard-app/       ← Showroom staff dashboard (React/Vite, deploy to Vercel — or served by the API)
 ├── mobile-app/          ← Flutter companion app (standalone — build/run separately)
 ├── firmware/            ← ESP32 captive-portal firmware (Arduino/C++ — flash separately)
+├── mcp-server/          ← MCP server exposing the API as tools for Claude & other MCP clients
 ├── docs/                ← Supabase schema (this project + Marketplace integration)
 ├── render.yaml          ← Render blueprint for the backend
 └── package.json         ← npm workspaces root (server + captive-portal-app + dashboard-app only)
 ```
 
-`mobile-app/` and `firmware/` are standalone projects included for convenience — they're
-not part of the npm workspace and don't affect `npm install`/`npm run build` at the root.
-See `mobile-app/README.md` and `firmware/README.md` for their own setup steps.
+`mobile-app/`, `firmware/`, and `mcp-server/` are standalone projects included for
+convenience — they're not part of the npm workspace and don't affect `npm
+install`/`npm run build` at the root. See `mobile-app/README.md`, `firmware/README.md`,
+and `mcp-server/README.md` for their own setup steps.
 
 ---
 
@@ -169,6 +171,13 @@ Staff can move a booking through **Requested → Confirmed → Completed** (or
 **Cancelled**) from the Test Drives table.
 
 ---
+
+## MCP server
+
+`mcp-server/` wraps this same API as MCP tools, so Claude Desktop, Claude Code, or any
+other MCP client can list/confirm test drives, look up customers and orders, manage
+coupons, etc. in natural language instead of calling the REST endpoints directly. See
+`mcp-server/README.md` for setup — it's a two-minute `npm install` + config entry.
 
 ## API reference
 
