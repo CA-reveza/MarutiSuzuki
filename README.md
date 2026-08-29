@@ -1,37 +1,42 @@
-# AXIONIK — Maruti Suzuki WiFi Retail Platform
+# Maruti Suzuki — In-Store Wi-Fi & Retail Dashboard Platform
 
-A simple, all-JavaScript rewrite of the AXIONIK captive-portal + retail dashboard system.
-Backend is Node.js/Express + Supabase (no Firebase, no Python). Both frontends are the
-React/Vite apps you already had — untouched except for a fixed, configurable API URL.
+A Node.js/Express + Supabase backend, paired with two React/Vite frontends:
+a customer-facing **captive Wi-Fi portal** (Sales / Services / Pre-book a Test Drive)
+and a **retail management dashboard** for showroom staff. Also includes a Flutter
+companion app and ESP32 firmware for in-store hotspot hardware.
 
 ## Structure
 
 ```
-axionik/
+maruti-suzuki-portal/
 ├── server/              ← Node.js/Express + Supabase API (deploy to Render)
-├── captive-portal-app/  ← Customer WiFi sign-in portal (React/Vite, deploy to Vercel)
-├── dashboard-app/       ← Store manager dashboard (React/Vite, deploy to Vercel — or served by the API)
-├── mobile-app/           ← Flutter mobile app (unrelated to the JS rewrite — build/run separately)
-├── firmware/             ← ESP32 captive-portal firmware (Arduino/C++ — flash separately)
-├── docs/                 ← Supabase schema references (Maruti Suzuki + Marketplace)
-├── render.yaml           ← Render blueprint for the backend
-└── package.json           ← npm workspaces root (server + captive-portal-app + dashboard-app only)
+├── captive-portal-app/  ← Customer Wi-Fi sign-in portal (React/Vite, deploy to Vercel)
+├── dashboard-app/       ← Showroom staff dashboard (React/Vite, deploy to Vercel — or served by the API)
+├── mobile-app/          ← Flutter companion app (standalone — build/run separately)
+├── firmware/            ← ESP32 captive-portal firmware (Arduino/C++ — flash separately)
+├── docs/                ← Supabase schema (this project + Marketplace integration)
+├── render.yaml          ← Render blueprint for the backend
+└── package.json         ← npm workspaces root (server + captive-portal-app + dashboard-app only)
 ```
 
-`mobile-app/` and `firmware/` are standalone projects copied in as-is for convenience —
-they're not part of the npm workspace and don't affect `npm install`/`npm run build` at
-the root. See `mobile-app/README.md` and `firmware/README.md` for their own setup steps.
+`mobile-app/` and `firmware/` are standalone projects included for convenience — they're
+not part of the npm workspace and don't affect `npm install`/`npm run build` at the root.
+See `mobile-app/README.md` and `firmware/README.md` for their own setup steps.
+
+---
 
 ## 1. Local setup
 
 ```bash
-npm install                       # installs all 3 workspaces at once
+npm install                       # installs all 3 workspaces at once (server, captive-portal-app, dashboard-app)
 cp server/.env.example server/.env
-# then edit server/.env with your Supabase URL + key
+# then edit server/.env with your Supabase URL + key (see Section 2)
 ```
 
-Without a `.env`, the server still runs — it just falls back to in-memory storage,
-which resets whenever the server restarts. Good enough for quick local testing.
+Without a configured `.env`, the server still runs — it just falls back to in-memory
+storage, which resets every time the server restarts. That's fine for a five-minute
+test, but **for anything real (including test drive bookings surviving a restart),
+set up Supabase first.**
 
 Run each piece in its own terminal:
 
@@ -41,19 +46,76 @@ npm run dev:portal      # captive portal on http://localhost:3000
 npm run dev:dashboard   # dashboard on a Vite dev port (check terminal output)
 ```
 
-Both frontends read `VITE_API_URL` to know where the backend lives. Locally they default
-to `http://localhost:8000`, so you don't need to set anything to develop. To point a
+Both frontends read `VITE_API_URL` to know where the backend lives. Locally they
+default to `http://localhost:8000`, so nothing extra is needed to develop. To point a
 frontend at a different backend, create a `.env` in that app's folder:
 
 ```
 VITE_API_URL=http://localhost:8000
 ```
 
+> **Deploying the portal or dashboard separately from the backend?** You MUST set
+> `VITE_API_URL` to the full deployed backend URL in that project's environment
+> variables, then trigger a fresh build — Vite only reads env vars at build time.
+> Without this, the portal will still *look* like it's working (form submissions
+> show a success screen) while nothing actually reaches the server. See
+> "Troubleshooting" below.
+
+---
+
 ## 2. Database setup (Supabase)
 
-Run `docs/supabase_schema.sql` (from the original project) in your Supabase project's
-SQL editor to create the `customers`, `coupons`, `redemptions`, `orders`, and `feedbacks`
-tables. The server also works without this — it just won't persist across restarts.
+The server works without Supabase (in-memory fallback), but anything that needs to
+survive a restart — customer check-ins, test drive bookings, coupon redemptions —
+needs it. You can either reuse an existing Supabase project or spin up a dedicated
+one just for this app; the steps are the same either way.
+
+### a) Create a project (skip if reusing one)
+
+1. Go to [supabase.com](https://supabase.com) → **New Project**
+2. Pick an organization, name it (e.g. `maruti-suzuki-portal`), set a database
+   password, choose a region close to your users
+3. Wait ~2 minutes for it to provision
+
+### b) Get your credentials
+
+**Settings → API** in the project:
+- **Project URL** — `https://xxxxxxxxxxxx.supabase.co`
+- **service_role key** — under "Project API keys". Use this one, **not** the
+  `anon`/`publishable` key. `service_role` bypasses Row Level Security, which is what
+  a trusted backend server wants. **Never** put this key in a frontend `.env`
+  (anything prefixed `VITE_`) — only in `server/.env`, which stays private.
+
+### c) Create the tables
+
+Run `docs/supabase_schema.sql` in your Supabase project's **SQL Editor**. It creates:
+
+| Table | Used for |
+|---|---|
+| `customers` | Wi-Fi captive-portal check-ins, loyalty tier, points |
+| `coupons` | Active promotions (seeded automatically on first API call) |
+| `redemptions` | Coupon usage log |
+| `orders` | Placed orders (dashboard "Orders" tab) |
+| `feedbacks` | Customer feedback (dashboard "Customer Feedback" tab) |
+| `testdrives` | "Pre-book a Test Drive" bookings (dashboard "Test Drives" tab) |
+
+It also enables Row Level Security with permissive "allow all" policies on every
+table, and sets up a trigger that auto-creates a redemption row whenever a customer
+is assigned a coupon.
+
+### d) Wire it up
+
+```
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-service-role-key-here
+```
+
+Restart the server. Check the startup log:
+- Still seeing `⚠ SUPABASE_URL / SUPABASE_KEY are not set`? The env vars weren't
+  picked up — check for typos, quotes, or trailing spaces.
+- Warning gone → you're connected. Data now survives restarts.
+
+---
 
 ## 3. Deploy the backend to Render
 
@@ -66,7 +128,15 @@ tables. The server also works without this — it just won't persist across rest
    By default the backend also serves the built dashboard at `/`, so this one service
    covers both API + dashboard if you want the simplest setup.
 
-Your live API will be something like `https://axionik-api.onrender.com`.
+Your live API will be something like `https://maruti-suzuki-api.onrender.com`.
+
+> **Render free tier note:** free web services spin down after ~15 minutes of
+> inactivity and cold-start (30–50s) on the next request. If Supabase isn't
+> configured, that cold start wipes any in-memory data collected before the sleep —
+> this is the #1 cause of "a customer/booking appeared, then vanished." Configuring
+> Supabase (Section 2) fixes this permanently.
+
+---
 
 ## 4. Deploy the frontends to Vercel
 
@@ -77,13 +147,36 @@ Each app deploys as its own Vercel project (a `vercel.json` is already in each f
 - **Dashboard** (optional, if you don't want to rely on the bundled copy from Render):
   New Project → Root Directory: `dashboard-app` → same `VITE_API_URL` → Deploy.
 
+---
+
+## Sales / Services & Test Drive booking
+
+The captive portal has a **Sales / Services** tab switcher:
+
+- **Sales** — new model showcase, "Explore Models" grid (Swift, Baleno, Brezza, Grand
+  Vitara, Dzire, Ertiga, Jimny, Eeco, True Value pre-owned), and a **"Pre-book a Test
+  Drive"** button that opens a booking modal (pick a model + time slot).
+- **Services** — service center booking, insurance & warranty desk info.
+
+Submitting a test drive booking `POST`s to `/api/testdrives`. The dashboard polls
+that same endpoint every 10 seconds, and any newly-seen booking:
+- appears in the **Test Drives** tab (in the sidebar, just above **Connectors**) with
+  customer name/phone/email, vehicle model, date, time slot, and showroom
+- triggers a notification-bell entry + chime, same as the existing "new customer
+  checked in" popup
+
+Staff can move a booking through **Requested → Confirmed → Completed** (or
+**Cancelled**) from the Test Drives table.
+
+---
+
 ## API reference
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/health` | Health check |
 | GET | `/api/menu/:storeId` | Store info + offers |
-| POST | `/api/customers` | WiFi captive-portal check-in (creates/updates customer, redeems coupon) |
+| POST | `/api/customers` | Wi-Fi captive-portal check-in (creates/updates customer, redeems coupon) |
 | GET | `/api/customers` | List customers |
 | GET | `/api/activity` | Recent visit log |
 | GET / POST | `/api/coupons` | List / create coupons |
@@ -92,13 +185,18 @@ Each app deploys as its own Vercel project (a `vercel.json` is already in each f
 | GET | `/api/orders` | List orders |
 | POST | `/api/feedback` | Submit customer feedback |
 | GET | `/api/feedbacks` | List feedback |
+| POST | `/api/testdrives` | Submit a "Pre-book a Test Drive" booking from the captive portal |
+| GET | `/api/testdrives` | List test drive bookings (dashboard Test Drives tab) |
 | GET | `/api/marketplace/:email` | A customer's Axionik Marketplace activity (movie bookings, restaurant reservations, retail orders) |
+
+---
 
 ## Marketplace activity integration
 
-The dashboard's customer detail modal shows that customer's activity from
-Axionik-MarketplacePro (movies, restaurants, retail) — matched by **email**,
-since that's what MarketplacePro's booking tools key on.
+The dashboard's customer detail modal shows that customer's activity from a
+separate Axionik-MarketplacePro Supabase project (movies, restaurants, retail) —
+matched by **email**. This is intentionally a **different** Supabase project from
+the one in Section 2 — don't merge them.
 
 Set these on the server (`server/.env`, or as Render env vars) to enable it:
 
@@ -107,26 +205,69 @@ MARKETPLACE_SUPABASE_URL=...
 MARKETPLACE_SUPABASE_KEY=...
 ```
 
-**Important — verify the table names.** `server/src/routes/marketplace.js` guesses
-the Supabase table names (`bookings`, `reservations`, `orders`) based on the MCP
-tool schema, since I didn't have direct access to your Marketplace project's actual
-schema. If the panel shows a "couldn't read this table" error for any section, open
-that file, check the real table names in your Marketplace Supabase project, and
-update the `SOURCES` array at the top — everything else adapts automatically.
+**Verify the table names.** `server/src/routes/marketplace.js` guesses the Supabase
+table names (`bookings`, `reservations`, `orders`) based on the MCP tool schema. If
+the panel shows a "couldn't read this table" error for any section, open that file,
+check the real table names in your Marketplace Supabase project, and update the
+`SOURCES` array at the top — everything else adapts automatically.
 
-Also worth double-checking: the key you're using
-(`sb_publishable_...`) is a **publishable** key, not the legacy `service_role` JWT.
-Publishable keys are subject to Row Level Security — if MarketplacePro's tables
-don't have a public-read RLS policy, these queries will return empty rather than
-erroring. If the panel stays empty even for a customer you know has bookings, that's
-the first thing to check in Supabase (Authentication → Policies on those tables).
+Also double-check the key type: if it's `sb_publishable_...`, that's a publishable
+key subject to Row Level Security. If MarketplacePro's tables don't have a
+public-read RLS policy, these queries return empty rather than erroring — check
+Authentication → Policies on those tables if the panel stays empty for a customer
+you know has activity.
 
-## What changed from the original
+---
+
+## Troubleshooting
+
+**Test drive bookings / customer check-ins don't reach the dashboard at all**
+Almost always a `VITE_API_URL` problem. If the captive portal is deployed on a
+different domain from the backend and `VITE_API_URL` wasn't set at build time, every
+API call from the portal silently fails (the on-screen confirmation still shows,
+since the UI doesn't block on the network call). Set `VITE_API_URL` in that
+project's env vars and redeploy.
+
+**Data appears once, then vanishes after ~15–20 seconds**
+Supabase isn't configured (or the required table doesn't exist yet), so the server
+is holding data only in memory. On Render's free tier, an idle instance sleeps and
+cold-starts on the next request, wiping that memory. Follow Section 2 to set up
+Supabase — once connected, data survives restarts.
+
+**A test drive or order shows an ID starting with `RAY-` instead of `MS-`**
+That was a leftover from an earlier version of this project's database trigger
+(`docs/supabase_schema.sql`) generating `RAY-ORD-...` order IDs — already fixed in
+this copy. If you ran an older version of that SQL script against your Supabase
+project, re-run the current `docs/supabase_schema.sql` (the `CREATE TABLE IF NOT
+EXISTS` / `CREATE OR REPLACE FUNCTION` statements are safe to re-run) to pick up the
+fix.
+
+**An old coupon code (`FESTIVE20`, `BEAUTYBUY2`, `ENDOFSEASON50`) shows up**
+Those were the original template's seed coupons. If your `coupons` table already got
+seeded with them before this fix, delete those four rows manually in Supabase's
+Table Editor — the corrected codes (`ACCESSORIES20`, `SERVICEBUY2`, `TESTDRIVE50`,
+`FIRSTCITIZEN15`) will populate on the next `/api/coupons` call.
+
+**The ESP32 firmware still shows old branding/content**
+`firmware/esp32_captive_portal/portal_html.h` embeds a frozen, pre-built copy of the
+captive portal's compiled HTML for offline use. It needs to be regenerated from a
+fresh `npm run build` of `captive-portal-app` and re-embedded — it isn't kept in
+sync automatically.
+
+---
+
+## What changed from the original template
 
 - Backend rewritten from Python/FastAPI (two overlapping Firebase + Supabase
   implementations) into one clean Express + Supabase service — no service-account
-  JSON secrets to manage, matches your existing Supabase-first stack.
-- Fixed hardcoded `http://localhost:63265` API calls baked into both frontends —
-  these would have silently broken in production regardless of the backend rewrite.
-- Removed a leftover hardcoded Windows path and duplicate/dead route definitions
-  from the old `main.py`.
+  JSON secrets to manage, matches a Supabase-first stack.
+- Full rebrand from the original clothing-retail template to Maruti Suzuki
+  automotive sales & service: mock catalog, inventory, orders, coupons, and
+  dashboard copy all replaced; captive portal restructured into Sales / Services
+  tabs with a Pre-book a Test Drive flow.
+- Added the `testdrives` table/API/dashboard tab described above.
+- Fixed a hardcoded `http://localhost:8000` fallback in the captive portal's API
+  config that would silently break every request in a production deploy without
+  `VITE_API_URL` set.
+- Fixed a leftover `RAY-ORD-` prefix baked into a Supabase database trigger, and
+  stale seed-coupon data left over from the original template.
