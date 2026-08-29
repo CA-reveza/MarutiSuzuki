@@ -198,6 +198,28 @@ export async function saveTestDrive(testDrive) {
   return testDrive;
 }
 
+export async function updateTestDriveStatus(id, status) {
+  const existing = memory.testdrives.get(id);
+  const updated = existing ? { ...existing, status } : null;
+  if (updated) memory.testdrives.set(id, updated);
+
+  await safeSupabase(
+    () => supabase.from("testdrives").update({ status }).eq("id", id),
+    null
+  );
+
+  if (updated) return updated;
+
+  // Not in this process's memory (e.g. server restarted since the booking
+  // was created) — read the row back from Supabase so the caller still gets
+  // a full, current record to respond with.
+  const row = await safeSupabase(async () => {
+    const { data } = await supabase.from("testdrives").select("*").eq("id", id).maybeSingle();
+    return data;
+  }, null);
+  return row ? { ...row, status } : { id, status };
+}
+
 export async function listTestDrives() {
   const supaRows = await safeSupabase(async () => {
     const { data } = await supabase

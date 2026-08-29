@@ -187,6 +187,7 @@ Staff can move a booking through **Requested → Confirmed → Completed** (or
 | GET | `/api/feedbacks` | List feedback |
 | POST | `/api/testdrives` | Submit a "Pre-book a Test Drive" booking from the captive portal |
 | GET | `/api/testdrives` | List test drive bookings (dashboard Test Drives tab) |
+| PATCH | `/api/testdrives/:id` | Update a booking's status (Requested → Confirmed → Completed, or Cancelled) |
 | GET | `/api/marketplace/:email` | A customer's Axionik Marketplace activity (movie bookings, restaurant reservations, retail orders) |
 
 ---
@@ -220,6 +221,13 @@ you know has activity.
 ---
 
 ## Troubleshooting
+
+**Marking a test drive "Confirmed" or "Mark Done" reverts back to "Requested" on refresh**
+This was a real bug in an earlier version of the dashboard: status changes only updated
+local React state and were never sent back to the server, so the next poll (or a page
+refresh) overwrote them with whatever status was still stored in the database. Already
+fixed — status changes now `PATCH /api/testdrives/:id`, which persists to Supabase (or
+this process's in-memory store if Supabase isn't configured).
 
 **Test drive bookings / customer check-ins don't reach the dashboard at all**
 Almost always a `VITE_API_URL` problem. If the captive portal is deployed on a

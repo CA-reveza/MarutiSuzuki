@@ -1,8 +1,10 @@
 import { Router } from "express";
-import { saveTestDrive, listTestDrives } from "../db.js";
+import { saveTestDrive, listTestDrives, updateTestDriveStatus } from "../db.js";
 import { STORE, shortId, nowIso } from "../lib/helpers.js";
 
 const router = Router();
+
+const VALID_STATUSES = ["Requested", "Confirmed", "Completed", "Cancelled"];
 
 // Captive portal — "Pre-book a Test Drive" submission.
 router.post("/api/testdrives", async (req, res) => {
@@ -36,6 +38,22 @@ router.post("/api/testdrives", async (req, res) => {
 
 router.get("/api/testdrives", async (req, res) => {
   res.json({ success: true, testDrives: await listTestDrives() });
+});
+
+// Dashboard — Confirm / Mark Done / Cancel a booking.
+router.patch("/api/testdrives/:id", async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body || {};
+
+  if (!VALID_STATUSES.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      error: `status must be one of: ${VALID_STATUSES.join(", ")}`,
+    });
+  }
+
+  const testDrive = await updateTestDriveStatus(id, status);
+  res.json({ success: true, testDrive });
 });
 
 export default router;
