@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Car, CheckCircle2, Calendar, Clock } from 'lucide-react';
+import { X, Car, CheckCircle2, Calendar, Clock, Loader2 } from 'lucide-react';
 import { CustomerInfo } from '../types';
 import { BRANDS } from '../data/mockStoreData';
+import { apiUrl } from '../config/api';
 
 interface TestDriveModalProps {
   customer: CustomerInfo | null;
@@ -14,13 +15,38 @@ export const TestDriveModal: React.FC<TestDriveModalProps> = ({ customer, onClos
   const [selectedModel, setSelectedModel] = useState<string>(BRANDS[0]?.name || '');
   const [selectedSlot, setSelectedSlot] = useState<string>(TIME_SLOTS[0]);
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!customer) return null;
 
   const carModels = BRANDS.filter((b) => b.id !== 'true-value-class');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+
+    const todayDate = new Date().toISOString().slice(0, 10);
+
+    try {
+      await fetch(apiUrl('/api/testdrives'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: customer.fullName,
+          customerPhone: customer.phone,
+          customerEmail: (customer as any).email || '',
+          model: selectedModel,
+          date: todayDate,
+          slot: selectedSlot,
+        }),
+      });
+    } catch (err) {
+      // Dashboard polling will simply not see this booking if the
+      // request fails — the on-screen confirmation still shows so the
+      // customer isn't blocked, but we log for diagnostics.
+      console.warn('Test drive booking request failed:', err);
+    }
+
     try {
       const payload = {
         type: 'TEST_DRIVE_BOOKED',
@@ -35,6 +61,8 @@ export const TestDriveModal: React.FC<TestDriveModalProps> = ({ customer, onClos
       localStorage.setItem('marutisuzuki_wifi_telemetry_event', JSON.stringify(payload));
       new BroadcastChannel('marutisuzuki_wifi_channel').postMessage(payload);
     } catch (e) {}
+
+    setIsSubmitting(false);
     setSubmitted(true);
   };
 
@@ -135,10 +163,20 @@ export const TestDriveModal: React.FC<TestDriveModalProps> = ({ customer, onClos
 
             <button
               type="submit"
-              className="w-full py-3.5 bg-[#122B52] hover:bg-[#0B2038] text-white text-xs font-bold tracking-wider uppercase rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
+              disabled={isSubmitting}
+              className="w-full py-3.5 bg-[#122B52] hover:bg-[#0B2038] disabled:opacity-70 disabled:cursor-not-allowed text-white text-xs font-bold tracking-wider uppercase rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
             >
-              <Car className="w-4 h-4" />
-              <span>Confirm Test Drive Request</span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Booking Your Test Drive...</span>
+                </>
+              ) : (
+                <>
+                  <Car className="w-4 h-4" />
+                  <span>Confirm Test Drive Request</span>
+                </>
+              )}
             </button>
           </form>
         )}

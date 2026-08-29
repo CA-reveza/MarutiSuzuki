@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { TabType, Order, OrderStatus, Customer, InventoryItem, Coupon, ReturnRecord, CouponRedemption } from './types';
+import { TabType, Order, OrderStatus, Customer, InventoryItem, Coupon, ReturnRecord, CouponRedemption, TestDrive } from './types';
 import { apiUrl } from './config/api';
 import {
   INITIAL_ORDERS,
@@ -22,6 +22,7 @@ import { OverviewTab } from './components/dashboard/OverviewTab';
 import { OrdersTab } from './components/orders/OrdersTab';
 import { CustomersTab } from './components/customers/CustomersTab';
 import { ConnectorsTab } from './components/connectors/ConnectorsTab';
+import { TestDrivesTab } from './components/testdrives/TestDrivesTab';
 import { InventoryTab } from './components/inventory/InventoryTab';
 import { ReturnProductTab } from './components/returns/ReturnProductTab';
 import { CouponsTab } from './components/coupons/CouponsTab';
@@ -40,6 +41,7 @@ export default function App() {
 
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
+  const [testDrives, setTestDrives] = useState<TestDrive[]>([]);
 
   const [notifications, setNotifications] = useState<AppNotification[]>([
     {
@@ -80,6 +82,7 @@ export default function App() {
   ]);
   const [customerToasts, setCustomerToasts] = useState<CustomerToast[]>([]);
   const knownCustomerIdsRef = React.useRef<Set<string> | null>(null);
+  const knownTestDriveIdsRef = React.useRef<Set<string> | null>(null);
 
   const dismissToast = (id: string) => {
     setCustomerToasts((prev) => prev.filter((t) => t.id !== id));
@@ -298,6 +301,61 @@ export default function App() {
           }
         }
       } catch (e) {}
+
+      try {
+        const resTD = await fetch(apiUrl("/api/testdrives"));
+        if (resTD.ok) {
+          const dataTD = await resTD.json();
+          if (dataTD && dataTD.success && Array.isArray(dataTD.testDrives) && isMounted) {
+            const apiTestDrives: TestDrive[] = dataTD.testDrives.map((t: any) => ({
+              id: t.id,
+              customerName: t.customer_name || t.customerName || 'Wi-Fi Guest',
+              customerPhone: t.customer_phone || t.customerPhone || '',
+              customerEmail: t.customer_email || t.customerEmail || '',
+              vehicleModel: t.vehicle_model || t.vehicleModel || 'Not specified',
+              preferredDate: t.preferred_date || t.preferredDate || '',
+              timeSlot: t.time_slot || t.timeSlot || '',
+              storeLocation: t.store_location || t.storeLocation || 'Maruti Suzuki Arena Flagship Showroom',
+              status: (t.status || 'Requested') as TestDrive['status'],
+              bookedAt: t.booked_at || t.bookedAt || new Date().toISOString(),
+            }));
+
+            const currentTdIds = new Set(apiTestDrives.map((t) => t.id));
+            const isFirstTdFetch = knownTestDriveIdsRef.current === null;
+            if (!isFirstTdFetch) {
+              const newlyBooked = apiTestDrives.filter((t) => !knownTestDriveIdsRef.current!.has(t.id));
+              if (newlyBooked.length) {
+                setNotifications((prev) => [
+                  ...newlyBooked.map((t) => ({
+                    id: `td-${t.id}`,
+                    title: 'New Test Drive Booked',
+                    desc: `${t.customerName} requested a test drive for ${t.vehicleModel} at ${t.timeSlot} on ${t.preferredDate}.`,
+                    time: 'Just now',
+                    unread: true,
+                  })),
+                  ...prev,
+                ]);
+                playNewCustomerChime();
+              }
+            }
+            knownTestDriveIdsRef.current = currentTdIds;
+
+            setTestDrives((prev) => {
+              const merged = [...apiTestDrives];
+              // Preserve any local status changes (e.g. Confirmed/Completed)
+              // made in the dashboard that the server copy doesn't reflect
+              // yet, so an in-progress edit isn't clobbered by the next poll.
+              prev.forEach((local) => {
+                const idx = merged.findIndex((m) => m.id === local.id);
+                if (idx !== -1 && local.status !== 'Requested') {
+                  merged[idx] = { ...merged[idx], status: local.status };
+                }
+              });
+              return merged;
+            });
+          }
+        }
+      } catch (e) {}
     };
 
     fetchLiveData();
@@ -399,6 +457,12 @@ export default function App() {
     }
   };
 
+  const handleUpdateTestDriveStatus = (id: string, newStatus: TestDrive['status']) => {
+    setTestDrives((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, status: newStatus } : t))
+    );
+  };
+
   const handleUpdateStock = (itemId: string, newStock: number) => {
     setInventory((prev) =>
       prev.map((item) => {
@@ -463,6 +527,8 @@ export default function App() {
         return 'Return Product Module';
       case 'coupons':
         return 'Promotions & Coupons';
+      case 'testdrives':
+        return 'Test Drive Bookings';
       case 'connectors':
         return 'Connectors — Marketplace Activity';
       case 'analytics':
@@ -488,6 +554,9 @@ export default function App() {
         setSelectedStore={setSelectedStore}
         isOpenMobile={isOpenMobile}
         setIsOpenMobile={setIsOpenMobile}
+        testDriveBadge={testDrives.filter((t) => t.status === 'Requested').length > 0
+          ? `${testDrives.filter((t) => t.status === 'Requested').length} New`
+          : undefined}
       />
 
       <div className="lg:pl-64 flex flex-col min-h-screen transition-all duration-300">
@@ -565,6 +634,10 @@ export default function App() {
 
           {activeTab === 'coupons' && (
             <CouponsTab coupons={coupons} onCreateCoupon={handleCreateCoupon} />
+          )}
+
+          {activeTab === 'testdrives' && (
+            <TestDrivesTab testDrives={testDrives} onUpdateStatus={handleUpdateTestDriveStatus} />
           )}
 
           {activeTab === 'connectors' && <ConnectorsTab />}

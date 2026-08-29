@@ -5,11 +5,25 @@ export type TabType = 'feedback' |
   | 'inventory'
   | 'return_product'
   | 'coupons'
+  | 'testdrives'
   | 'connectors'
   | 'analytics'
   | 'reports'
   | 'help'
   | 'settings';
+
+export interface TestDrive {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  vehicleModel: string;
+  preferredDate: string;
+  timeSlot: string;
+  storeLocation: string;
+  status: 'Requested' | 'Confirmed' | 'Completed' | 'Cancelled';
+  bookedAt: string;
+}
 
 export type LoyaltyTier = 'Black' | 'Platinum' | 'Golden' | 'Silver';
 

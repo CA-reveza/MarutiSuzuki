@@ -15,6 +15,7 @@ import {
   ChevronDown,
   X,
   Zap,
+  Car,
 } from 'lucide-react';
 import { TabType } from '../../types';
 import { STORE_LOCATIONS } from '../../data/mockData';
@@ -27,6 +28,7 @@ interface SidebarProps {
   setSelectedStore: (store: string) => void;
   isOpenMobile: boolean;
   setIsOpenMobile: (open: boolean) => void;
+  testDriveBadge?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -36,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setSelectedStore,
   isOpenMobile,
   setIsOpenMobile,
+  testDriveBadge,
 }) => {
   const menuItems: { id: TabType; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -45,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'feedback', label: 'Customer Feedback', icon: <MessageSquare className="w-5 h-5 text-amber-500" /> },
     { id: 'return_product', label: 'Return Product', icon: <RotateCcw className="w-5 h-5" /> },
     { id: 'coupons', label: 'Coupons', icon: <Ticket className="w-5 h-5" /> },
+    { id: 'testdrives', label: 'Test Drives', icon: <Car className="w-5 h-5 text-emerald-500" />, badge: testDriveBadge },
     { id: 'connectors', label: 'Connectors', icon: <Zap className="w-5 h-5 text-violet-500" /> },
     { id: 'analytics', label: 'Analytics', icon: <BarChart3 className="w-5 h-5" /> },
     { id: 'reports', label: 'Reports', icon: <FileSpreadsheet className="w-5 h-5" /> },
