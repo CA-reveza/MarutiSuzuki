@@ -15,6 +15,7 @@ import ordersRoute from "./src/routes/orders.js";
 import feedbackRoute from "./src/routes/feedback.js";
 import marketplaceRoute from "./src/routes/marketplace.js";
 import testdrivesRoute from "./src/routes/testdrives.js";
+import mcpRoute from "./src/routes/mcp.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -31,6 +32,7 @@ app.use(ordersRoute);
 app.use(feedbackRoute);
 app.use(marketplaceRoute);
 app.use(testdrivesRoute);
+app.use(mcpRoute);
 
 // Serve the built dashboard (npm run build:dashboard) if it exists, so a
 // single Render service can host both the API and the dashboard UI.

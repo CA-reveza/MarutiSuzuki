@@ -14,7 +14,7 @@ maruti-suzuki-portal/
 ├── dashboard-app/       ← Showroom staff dashboard (React/Vite, deploy to Vercel — or served by the API)
 ├── mobile-app/          ← Flutter companion app (standalone — build/run separately)
 ├── firmware/            ← ESP32 captive-portal firmware (Arduino/C++ — flash separately)
-├── mcp-server/          ← MCP server exposing the API as tools for Claude & other MCP clients
+├── mcp-server/          ← MCP tool definitions + local stdio server; remote HTTP connector is mounted in server/
 ├── docs/                ← Supabase schema (this project + Marketplace integration)
 ├── render.yaml          ← Render blueprint for the backend
 └── package.json         ← npm workspaces root (server + captive-portal-app + dashboard-app only)
@@ -174,10 +174,18 @@ Staff can move a booking through **Requested → Confirmed → Completed** (or
 
 ## MCP server
 
-`mcp-server/` wraps this same API as MCP tools, so Claude Desktop, Claude Code, or any
-other MCP client can list/confirm test drives, look up customers and orders, manage
-coupons, etc. in natural language instead of calling the REST endpoints directly. See
-`mcp-server/README.md` for setup — it's a two-minute `npm install` + config entry.
+`mcp-server/` wraps this same API as MCP tools — list/confirm test drives, look up
+customers and orders, manage coupons, etc. in natural language instead of calling the
+REST endpoints directly. Two ways to use it:
+
+- **Remote connector (claude.ai, ChatGPT)** — a Streamable HTTP endpoint at `/mcp` is
+  already mounted on this same `server/`, so once it's deployed to Render your
+  connector URL is just `https://your-app.onrender.com/mcp`. No separate hosting.
+- **Local (Claude Desktop, Claude Code)** — `mcp-server/index.js` runs as a stdio
+  process via your MCP config.
+
+See `mcp-server/README.md` for step-by-step setup for both, including exactly where
+to click in claude.ai's and ChatGPT's current settings UI.
 
 ## API reference
 
@@ -198,6 +206,7 @@ coupons, etc. in natural language instead of calling the REST endpoints directly
 | GET | `/api/testdrives` | List test drive bookings (dashboard Test Drives tab) |
 | PATCH | `/api/testdrives/:id` | Update a booking's status (Requested → Confirmed → Completed, or Cancelled) |
 | GET | `/api/marketplace/:email` | A customer's Axionik Marketplace activity (movie bookings, restaurant reservations, retail orders) |
+| POST | `/mcp` | Streamable HTTP MCP endpoint — use as your claude.ai / ChatGPT connector URL (see "MCP server" above) |
 
 ---
 
