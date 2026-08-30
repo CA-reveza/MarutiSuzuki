@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { ShoppingBag, RefreshCw, Zap, AlertCircle } from 'lucide-react';
 import { Card } from '../common/Card';
 import { Badge } from '../common/Badge';
-import { apiUrl } from '../../config/api';
+import { MarketplaceOrder } from '../../types';
 
-interface MarketplaceActivitySource {
-  key: string;
-  label: string;
-  rows: any[];
+interface ConnectorsTabProps {
+  orders: MarketplaceOrder[];
+  ready: boolean;
   error: string | null;
+  lastRefreshed: Date | null;
+  onRefresh: () => Promise<void>;
 }
 
 const statusVariant = (status: string): 'success' | 'warning' | 'danger' | 'neutral' => {
@@ -49,11 +50,11 @@ const EmptyState: React.FC<{ error: string | null }> = ({ error }) => (
   </div>
 );
 
-const RetailOrdersTable: React.FC<{ source: MarketplaceActivitySource }> = ({ source }) => (
+const RetailOrdersTable: React.FC<{ orders: MarketplaceOrder[]; error: string | null }> = ({ orders, error }) => (
   <Card>
-    <SectionHeader icon={<ShoppingBag className="w-4 h-4" />} title="Retail Orders" count={source.rows.length} tint="bg-sky-50 text-sky-600" />
-    {!source.rows.length ? (
-      <EmptyState error={source.error} />
+    <SectionHeader icon={<ShoppingBag className="w-4 h-4" />} title="Retail Orders" count={orders.length} tint="bg-sky-50 text-sky-600" />
+    {!orders.length ? (
+      <EmptyState error={error} />
     ) : (
       <div className="overflow-x-auto -mx-6">
         <table className="w-full text-sm">
@@ -68,7 +69,7 @@ const RetailOrdersTable: React.FC<{ source: MarketplaceActivitySource }> = ({ so
             </tr>
           </thead>
           <tbody>
-            {source.rows.map((r) => (
+            {orders.map((r) => (
               <tr key={r.id} className="border-b border-gray-50 dark:border-slate-800 last:border-0 hover:bg-gray-50/60 dark:hover:bg-slate-800/60">
                 <td className="px-6 py-3">
                   <div className="font-semibold text-gray-900 dark:text-slate-100">{r.customer_name}</div>
@@ -88,36 +89,17 @@ const RetailOrdersTable: React.FC<{ source: MarketplaceActivitySource }> = ({ so
   </Card>
 );
 
-export const ConnectorsTab: React.FC = () => {
-  const [loading, setLoading] = useState(true);
-  const [ready, setReady] = useState(true);
-  const [activity, setActivity] = useState<MarketplaceActivitySource[]>([]);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+export const ConnectorsTab: React.FC<ConnectorsTabProps> = ({ orders, ready, error, lastRefreshed, onRefresh }) => {
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
 
-  const load = async () => {
-    setLoading(true);
+  const handleRefreshClick = async () => {
+    setIsRefreshing(true);
     try {
-      const res = await fetch(apiUrl('/api/marketplace/activity/all'));
-      const data = await res.json();
-      if (data?.success) {
-        setActivity(data.activity || []);
-        setReady(Boolean(data.marketplace_ready));
-        setLastRefreshed(new Date());
-      }
-    } catch (e) {
-      // Network hiccup — leave prior data on screen, user can hit Refresh.
+      await onRefresh();
     } finally {
-      setLoading(false);
+      setIsRefreshing(false);
     }
   };
-
-  useEffect(() => {
-    load();
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const retailSource = activity.find((a) => a.key === 'retail_orders') || { key: '', label: '', rows: [], error: null };
 
   return (
     <div className="space-y-6">
@@ -136,11 +118,11 @@ export const ConnectorsTab: React.FC = () => {
             <span className="text-xs text-gray-400 dark:text-slate-500">Updated {lastRefreshed.toLocaleTimeString('en-IN')}</span>
           )}
           <button
-            onClick={load}
-            disabled={loading}
+            onClick={handleRefreshClick}
+            disabled={isRefreshing}
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 cursor-pointer"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh
           </button>
         </div>
       </div>
@@ -153,7 +135,7 @@ export const ConnectorsTab: React.FC = () => {
         </div>
       )}
 
-      <RetailOrdersTable source={retailSource} />
+      <RetailOrdersTable orders={orders} error={error} />
     </div>
   );
 };

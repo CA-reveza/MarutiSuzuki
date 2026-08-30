@@ -25,6 +25,22 @@ export interface TestDrive {
   bookedAt: string;
 }
 
+// Shape returned by GET /api/marketplace/activity/all — see
+// server/src/routes/marketplace.js for the field mapping.
+export interface MarketplaceOrder {
+  id: string;
+  customer_name: string;
+  customer_email: string;
+  store: string;
+  items: string;
+  amount: number;
+  discount: number;
+  status: string;
+  payment_ref: string;
+  created_at: string;
+  confirmed_at: string | null;
+}
+
 export type LoyaltyTier = 'Black' | 'Platinum' | 'Golden' | 'Silver';
 
 export type OrderStatus = 'Delivered' | 'In Transit' | 'Processing' | 'Returned' | 'Cancelled';

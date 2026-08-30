@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { TabType, Order, OrderStatus, Customer, InventoryItem, Coupon, ReturnRecord, CouponRedemption, TestDrive } from './types';
+import { TabType, Order, OrderStatus, Customer, InventoryItem, Coupon, ReturnRecord, CouponRedemption, TestDrive, MarketplaceOrder } from './types';
 import { apiUrl } from './config/api';
 import {
   INITIAL_ORDERS,
@@ -42,7 +42,10 @@ export default function App() {
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
   const [testDrives, setTestDrives] = useState<TestDrive[]>([]);
-
+  const [marketplaceOrders, setMarketplaceOrders] = useState<MarketplaceOrder[]>([]);
+  const [marketplaceReady, setMarketplaceReady] = useState<boolean>(true);
+  const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
+  const [marketplaceLastRefreshed, setMarketplaceLastRefreshed] = useState<Date | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([
     {
       id: 'seed-1',
@@ -83,6 +86,7 @@ export default function App() {
   const [customerToasts, setCustomerToasts] = useState<CustomerToast[]>([]);
   const knownCustomerIdsRef = React.useRef<Set<string> | null>(null);
   const knownTestDriveIdsRef = React.useRef<Set<string> | null>(null);
+  const knownMarketplaceOrderIdsRef = React.useRef<Set<string> | null>(null);
 
   const dismissToast = (id: string) => {
     setCustomerToasts((prev) => prev.filter((t) => t.id !== id));
@@ -93,6 +97,55 @@ export default function App() {
   const markOneNotificationRead = (id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)));
   };
+
+  // Shared by the central polling loop below and the Connectors tab's manual
+  // "Refresh" button, so both paths update the exact same state/notifications
+  // instead of the tab keeping its own separate copy that only updates while
+  // that tab happens to be open.
+  const refreshMarketplace = React.useCallback(async () => {
+    try {
+      const resMkt = await fetch(apiUrl("/api/marketplace/activity/all"));
+      if (!resMkt.ok) return;
+      const dataMkt = await resMkt.json();
+      if (!dataMkt || !dataMkt.success) return;
+
+      const retailSource = (dataMkt.activity || []).find((a: any) => a.key === "retail_orders") || {
+        rows: [],
+        error: null,
+      };
+      const orders: MarketplaceOrder[] = retailSource.rows || [];
+
+      const currentMktIds = new Set(orders.map((o) => o.id));
+      const isFirstMktFetch = knownMarketplaceOrderIdsRef.current === null;
+      if (!isFirstMktFetch) {
+        const newlyArrived = orders.filter((o) => !knownMarketplaceOrderIdsRef.current!.has(o.id));
+        if (newlyArrived.length) {
+          setNotifications((prev) => [
+            ...newlyArrived.map((o) => ({
+              id: `mkt-${o.id}`,
+              title: 'New Marketplace Order',
+              desc: `${o.customer_email || o.customer_name || 'A customer'} placed an order for ${o.items || 'items'} (${
+                typeof o.amount === 'number' ? `₹${o.amount.toLocaleString('en-IN')}` : 'amount unknown'
+              }).`,
+              time: 'Just now',
+              unread: true,
+            })),
+            ...prev,
+          ]);
+          playNewCustomerChime();
+        }
+      }
+      knownMarketplaceOrderIdsRef.current = currentMktIds;
+
+      setMarketplaceOrders(orders);
+      setMarketplaceReady(Boolean(dataMkt.marketplace_ready));
+      setMarketplaceError(retailSource.error || null);
+      setMarketplaceLastRefreshed(new Date());
+    } catch (e) {
+      // Network hiccup — leave prior data on screen, next poll (or manual
+      // Refresh) will pick it back up.
+    }
+  }, []);
 
   
   // Safe Live API Sync Hook
@@ -356,6 +409,8 @@ export default function App() {
           }
         }
       } catch (e) {}
+
+      await refreshMarketplace();
     };
 
     fetchLiveData();
@@ -570,6 +625,9 @@ export default function App() {
         testDriveBadge={testDrives.filter((t) => t.status === 'Requested').length > 0
           ? `${testDrives.filter((t) => t.status === 'Requested').length} New`
           : undefined}
+        connectorsBadge={marketplaceOrders.filter((o) => (o.status || '').toLowerCase() === 'pending').length > 0
+          ? `${marketplaceOrders.filter((o) => (o.status || '').toLowerCase() === 'pending').length} New`
+          : undefined}
       />
 
       <div className="lg:pl-64 flex flex-col min-h-screen transition-all duration-300">
@@ -653,7 +711,15 @@ export default function App() {
             <TestDrivesTab testDrives={testDrives} onUpdateStatus={handleUpdateTestDriveStatus} />
           )}
 
-          {activeTab === 'connectors' && <ConnectorsTab />}
+          {activeTab === 'connectors' && (
+            <ConnectorsTab
+              orders={marketplaceOrders}
+              ready={marketplaceReady}
+              error={marketplaceError}
+              lastRefreshed={marketplaceLastRefreshed}
+              onRefresh={refreshMarketplace}
+            />
+          )}
 
           {activeTab === 'feedback' && <CustomerFeedbackTab />}
 

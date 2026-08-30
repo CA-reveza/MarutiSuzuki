@@ -29,6 +29,7 @@ interface SidebarProps {
   isOpenMobile: boolean;
   setIsOpenMobile: (open: boolean) => void;
   testDriveBadge?: string;
+  connectorsBadge?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -39,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   setIsOpenMobile,
   testDriveBadge,
+  connectorsBadge,
 }) => {
   const menuItems: { id: TabType; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -49,7 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'return_product', label: 'Return Product', icon: <RotateCcw className="w-5 h-5" /> },
     { id: 'coupons', label: 'Coupons', icon: <Ticket className="w-5 h-5" /> },
     { id: 'testdrives', label: 'Test Drives', icon: <Car className="w-5 h-5 text-emerald-500" />, badge: testDriveBadge },
-    { id: 'connectors', label: 'Connectors', icon: <Zap className="w-5 h-5 text-violet-500" /> },
+    { id: 'connectors', label: 'Connectors', icon: <Zap className="w-5 h-5 text-violet-500" />, badge: connectorsBadge },
     { id: 'analytics', label: 'Analytics', icon: <BarChart3 className="w-5 h-5" /> },
     { id: 'reports', label: 'Reports', icon: <FileSpreadsheet className="w-5 h-5" /> },
     { id: 'help', label: 'Help Center', icon: <HelpCircle className="w-5 h-5" /> },
