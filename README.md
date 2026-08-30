@@ -219,6 +219,13 @@ Section 2 (it has its own `retail_orders`, `app_users`, `products`, plus unrelat
 tables like `movies`/`restaurants`/`bookings` from other apps sharing that project) —
 don't merge them or point both sets of env vars at the same database.
 
+The Connectors tab polls `/api/marketplace/activity/all` on the same central 10-second
+cycle as Customers and Test Drives (not a separate, tab-local timer), so it stays
+current even while you're on a different tab, and a newly-arrived order triggers a
+notification-bell entry + chime and a "N New" badge on the sidebar, same as the other
+live-updating tabs. The **Refresh** button on that tab triggers the same shared fetch
+immediately rather than keeping its own separate copy of the data.
+
 Set these on the server (`server/.env`, or as Render env vars) to enable it:
 
 ```
