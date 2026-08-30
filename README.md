@@ -212,10 +212,12 @@ to click in claude.ai's and ChatGPT's current settings UI.
 
 ## Marketplace activity integration
 
-The dashboard's customer detail modal shows that customer's activity from a
-separate Axionik-MarketplacePro Supabase project (movies, restaurants, retail) —
-matched by **email**. This is intentionally a **different** Supabase project from
-the one in Section 2 — don't merge them.
+The dashboard's customer detail modal and Connectors tab show a customer's retail
+order activity pulled from a separate "Axionik-Marketplace" Supabase project —
+matched by **email**. This is a genuinely different Supabase project from the one in
+Section 2 (it has its own `retail_orders`, `app_users`, `products`, plus unrelated
+tables like `movies`/`restaurants`/`bookings` from other apps sharing that project) —
+don't merge them or point both sets of env vars at the same database.
 
 Set these on the server (`server/.env`, or as Render env vars) to enable it:
 
@@ -224,21 +226,57 @@ MARKETPLACE_SUPABASE_URL=...
 MARKETPLACE_SUPABASE_KEY=...
 ```
 
-**Verify the table names.** `server/src/routes/marketplace.js` guesses the Supabase
-table names (`bookings`, `reservations`, `orders`) based on the MCP tool schema. If
-the panel shows a "couldn't read this table" error for any section, open that file,
-check the real table names in your Marketplace Supabase project, and update the
-`SOURCES` array at the top — everything else adapts automatically.
+**Confirmed schema** (verified 2026-08-30 against the live project — see the comment
+block at the top of `server/src/routes/marketplace.js` for the authoritative version):
+
+| Table | Columns this integration reads |
+|---|---|
+| `retail_orders` | `id`, `user_id`, `line_items` (jsonb), `base_amount`, `discount_amount`, `final_amount`, `status`, `source`, `source_client`, `payment_ref`, `created_at`, `confirmed_at` |
+| `app_users` | `id`, `full_name`, `phone`, `email`, `created_at` |
+| `products` | `id`, `name`, `brand`, `base_price` |
+
+If this project's schema changes again in the future, you'll see errors like `Could
+not find the table 'public.retail_orders'` or `column retail_orders.user_id does not
+exist` — re-run the diagnostic query below against the Marketplace project and update
+`server/src/routes/marketplace.js` to match:
+
+```sql
+select table_name, column_name, data_type
+from information_schema.columns
+where table_schema = 'public'
+  and table_name in ('retail_orders', 'app_users', 'products')
+order by table_name, ordinal_position;
+```
+
+`line_items` is `jsonb`, so that query can't show what's inside each line item —
+`marketplace.js` tries a couple of likely key-name variants (`product_id`/`productId`,
+`quantity`/`qty`) so small drift there doesn't silently blank out every order line. If
+items still show as generic "1x Item" instead of a real product name, pull a sample
+row's `line_items` value and update the candidate key lists in that file.
 
 Also double-check the key type: if it's `sb_publishable_...`, that's a publishable
-key subject to Row Level Security. If MarketplacePro's tables don't have a
-public-read RLS policy, these queries return empty rather than erroring — check
-Authentication → Policies on those tables if the panel stays empty for a customer
-you know has activity.
+key subject to Row Level Security. If a table doesn't have a public-read RLS policy,
+these queries return empty rather than erroring — check Authentication → Policies on
+that table if the panel stays empty for a customer you know has activity.
+
+**Don't have a real second project for this?** Simply don't set the two env vars
+above (or remove them if set by mistake) — every route in `marketplace.js` already
+has a clean fallback (`marketplace_ready: false`), so the Connectors tab and customer
+modal just show a quiet "not configured" message instead of erroring.
 
 ---
 
 ## Troubleshooting
+
+**Connectors tab shows `Could not find the table 'public.retail_orders'` or a
+`column ... does not exist` error**
+The Marketplace Supabase project's schema has drifted from what
+`server/src/routes/marketplace.js` expects. Run the diagnostic query in "Marketplace
+activity integration" above against that project's SQL Editor, compare the result to
+the confirmed-schema table there, and update the query/column names in
+`marketplace.js` to match. (If you don't actually have a separate Marketplace
+project, the simpler fix is to remove `MARKETPLACE_SUPABASE_URL`/
+`MARKETPLACE_SUPABASE_KEY` from Render entirely — see that section for details.)
 
 **Marking a test drive "Confirmed" or "Mark Done" reverts back to "Requested" on refresh**
 This was a real bug in an earlier version of the dashboard: status changes only updated
